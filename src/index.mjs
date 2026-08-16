@@ -8,7 +8,7 @@ const config = {
   port: Number(process.env.PORT || 3000),
   dataDir: process.env.DATA_DIR || './data',
   baseUrl: process.env.SOURCE_BASE_URL || '',
-  category: process.env.SOURCE_CATEGORY || 'ps4',
+  categorySlug: process.env.SOURCE_CATEGORY || 'ps4',
   perPage: Number(process.env.SOURCE_PER_PAGE || 100),
   intervalMs: Math.max(Number(process.env.UPDATE_INTERVAL_MINUTES || 720), 1) * 60_000,
   updateOnStart: process.env.UPDATE_ON_START !== 'false'
