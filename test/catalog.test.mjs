@@ -38,6 +38,7 @@ describe('catalog', () => {
     const result = normalisePost(post, new Map());
     assert.strictEqual(result.downloadLinks.length, 2);
     assert.strictEqual(result.downloadLinks[0].url, 'https://example.com/download1');
+    assert.strictEqual(result.downloadLinks[0].name, 'Link 1');
     assert.strictEqual(result.titleId, 'CUSA12345');
   });
 
@@ -54,6 +55,7 @@ describe('catalog', () => {
     const result = normalisePost(post, new Map());
     assert.strictEqual(result.downloadLinks.length, 1);
     assert.strictEqual(result.downloadLinks[0].url, 'https://example.com/download.zip');
+    assert.strictEqual(result.downloadLinks[0].name, 'Download');
   });
 
   it('extrai titleId da descrição se não houver ACF', () => {

@@ -30,14 +30,12 @@ export function normalisePost(post, mediaById = new Map()) {
       .filter(link => link?.url)
       .map(link => ({
         url: link.url,
-        label: link.label || 'Download',
-        quality: link.quality || null,
-        language: link.language || null
+        name: link.name || link.label || 'Download'
       }));
   } else if (post.acf?.link_download) {
-    downloadLinks = [{ url: post.acf.link_download, label: 'Download', quality: null, language: null }];
+    downloadLinks = [{ url: post.acf.link_download, name: 'Download' }];
   } else if (post.meta?.download_link) {
-    downloadLinks = [{ url: post.meta.download_link, label: 'Download', quality: null, language: null }];
+    downloadLinks = [{ url: post.meta.download_link, name: 'Download' }];
   }
 
   // Tenta extrair titleId (CUSA, PCAS, etc.) da descrição ou do ACF
@@ -77,7 +75,7 @@ function packageFromGame(game) {
     category: /\b(dlc|add[ -]?on)\b/i.test(game.title) ? 'dlc' : 'game',
     posterUrl: game.cover || null,
     description: game.description,
-    downloadSource: null
+    downloadSource: game.source?.url || null
   };
 }
 

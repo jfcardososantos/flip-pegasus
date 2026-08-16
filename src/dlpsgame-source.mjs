@@ -22,9 +22,6 @@ function extractTitleId(description) {
   return match?.[0]?.toUpperCase() || null;
 }
 
-const DOWNLOAD_HOSTS = /(?:mega\.nz|1fichier\.com|mediafire\.com|drive\.google\.com|docs\.google\.com|gdrive|pixeldrain\.com|gofile\.io|qiwi\.gg|terabox\.com)/i;
-const DOWNLOAD_MARKERS = /\b(?:download|baixar|descargar|get\s*(?:the\s*)?link|mega|mediafire|google\s*drive|1fichier|pixeldrain|gofile)\b/i;
-
 function normaliseHttpUrl(value, baseUrl) {
   if (!value || value.startsWith('#') || value.startsWith('javascript:')) return null;
   try {
@@ -35,20 +32,20 @@ function normaliseHttpUrl(value, baseUrl) {
   }
 }
 
-function isDownloadLink(link, url) {
-  const marker = [
-    link.textContent,
-    link.getAttribute('aria-label'),
-    link.getAttribute('title'),
-    link.getAttribute('class'),
-    link.getAttribute('id'),
-    link.getAttribute('data-url'),
-    link.getAttribute('data-href')
-  ].filter(Boolean).join(' ');
+function nameForDownloadLink(link, fallbackUrl) {
+  // Sites desse formato frequentemente colocam a descrição (região, versão e
+  // parte) no parágrafo/linha que contém o botão, e deixam no <a> apenas o
+  // nome do provedor. Mantemos a descrição completa quando ela existe.
+  const container = link?.closest?.('p, li, tr, .download, .su-spoiler-content, .su-spoiler') || link;
+  const anchorText = link?.textContent?.replace(/\s+/g, ' ').trim();
+  let text = container?.textContent?.replace(/\s+/g, ' ').trim();
+  if (text && container !== link && /^(?:link|download|clique aqui)$/i.test(anchorText || '')) {
+    text = text.replace(/\s+(?:link|download|clique aqui)$/i, '').trim();
+  }
+  if (text) return text;
 
-  // Alguns botões usam um redirecionamento no próprio domínio. Nesse caso, o
-  // texto/classe do botão é a indicação confiável de que ele é um download.
-  return DOWNLOAD_HOSTS.test(url) || DOWNLOAD_MARKERS.test(marker);
+  try { return `Download - ${new URL(fallbackUrl).hostname}`; }
+  catch { return 'Download'; }
 }
 
 export function parseDlpsgamePostHtml(html, postUrl) {
@@ -68,20 +65,29 @@ export function parseDlpsgamePostHtml(html, postUrl) {
   let description = descEl?.textContent?.trim() || '';
   if (description.length > 500) description = description.substring(0, 500) + '...';
 
-  // Procura somente no conteúdo do post, para não confundir a navegação do
-  // site com links do jogo. Links internos de redirecionamento também entram
-  // quando o próprio botão indica download.
+  // Todo link HTTP/HTTPS publicado dentro do conteúdo entra no catálogo. Isso
+  // cobre hosts novos, redirecionamentos internos, botões e URLs em data-* sem
+  // precisar manter uma lista de provedores conhecidos.
   const downloadLinks = [];
   const seenUrls = new Set();
-  const content = doc.querySelector('.entry-content, .post-body, .post-content') || doc.body;
-  content.querySelectorAll('a[href]').forEach(link => {
-    const href = normaliseHttpUrl(link.getAttribute('href'), postUrl);
-    if (!href || !isDownloadLink(link, href) || seenUrls.has(href)) return;
+  const content = doc.querySelector('.entry-content, .post-body, .post-content, article, main') || doc.body;
+  const addDownloadLink = (link, rawUrl) => {
+    const href = normaliseHttpUrl(rawUrl, postUrl);
+    if (!href || seenUrls.has(href)) return;
 
     seenUrls.add(href);
-    const label = link.textContent?.trim() || link.getAttribute('aria-label') || link.getAttribute('title') || 'Download';
-    const quality = label.match(/\b(2160p|1080p|720p|4k|full\s*hd|hd)\b/i)?.[0] || null;
-    downloadLinks.push({ url: href, label, quality, language: null });
+    downloadLinks.push({ name: nameForDownloadLink(link, href), url: href });
+  };
+
+  content.querySelectorAll('a[href], [data-url], [data-href], [data-link], [data-download]').forEach(link => {
+    addDownloadLink(link, link.getAttribute('href') || link.getAttribute('data-url') || link.getAttribute('data-href') || link.getAttribute('data-link') || link.getAttribute('data-download'));
+  });
+
+  // Há posts que exibem a URL como texto em vez de uma âncora.
+  const urlsInText = content.textContent.match(/https?:\/\/[^\s"'<>]+/gi) || [];
+  urlsInText.forEach(rawUrl => {
+    const virtualLink = { getAttribute: () => null, textContent: rawUrl, closest: () => null };
+    addDownloadLink(virtualLink, rawUrl);
   });
 
   // Extrair titleId da descrição
@@ -275,7 +281,10 @@ export function normaliseDlpsgamePost(post) {
   const title = post.title || 'Sem título';
   const image = post.cover || null;
   const description = post.description || '';
-  const downloadLinks = post.downloadLinks || [];
+  const downloadLinks = (post.downloadLinks || []).map(link => ({
+    name: link.name || link.label || 'Download',
+    url: link.url
+  })).filter(link => link.url);
   const titleId = post.titleId || null;
   
   return {

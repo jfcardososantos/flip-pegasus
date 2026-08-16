@@ -16,19 +16,33 @@ test('extrai botões de download, inclusive redirecionamentos internos', () => {
 
   assert.deepEqual(post.downloadLinks, [
     {
-      url: 'https://dlpsgame.com/go/abc123',
-      label: 'Download — Parte 1',
-      quality: null,
-      language: null
+      name: 'Download — Parte 1',
+      url: 'https://dlpsgame.com/go/abc123'
     },
     {
-      url: 'https://mega.nz/file/xyz',
-      label: 'Mega — Parte 2',
-      quality: null,
-      language: null
+      name: 'Mega — Parte 2',
+      url: 'https://mega.nz/file/xyz'
+    },
+    {
+      name: 'Sobre o site',
+      url: 'https://example.org/about'
     }
   ]);
   assert.equal(post.titleId, 'CUSA12345');
+});
+
+test('extrai URLs de qualquer domínio em atributos e no texto do post', () => {
+  const post = parseDlpsgamePostHtml(`
+    <article class="entry-content">
+      <p>USA 11.xx Base - host novo part 1 <a href="https://host-novo.example/f/371AU0MaJW">Link</a></p>
+      <p data-url="https://outro-host.example/d/2CwV3Q">EUR 7.xx Game - host novo part 2</p>
+    </article>
+  `, 'https://dlpsgame.com/nhl-26-ps5/');
+
+  assert.deepEqual(post.downloadLinks, [
+    { name: 'USA 11.xx Base - host novo part 1', url: 'https://host-novo.example/f/371AU0MaJW' },
+    { name: 'EUR 7.xx Game - host novo part 2', url: 'https://outro-host.example/d/2CwV3Q' }
+  ]);
 });
 
 test('não duplica links nem importa a navegação fora do conteúdo', () => {
