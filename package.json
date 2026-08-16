@@ -1,0 +1,12 @@
+{
+  "name": "ps4-catalog-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "update": "RUN_ONCE=true node src/index.mjs",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20" }
+}

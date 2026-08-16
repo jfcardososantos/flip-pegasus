@@ -1,0 +1,23 @@
+# Configuração local e segredos
+.env
+.env.*
+!.env.example
+
+# Catálogo e estado gerados em execução
+data/catalog.json
+data/catalog-status.json
+data/*.tmp
+
+# Dependências, logs e cobertura
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage/
+
+# Arquivos do sistema e editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
