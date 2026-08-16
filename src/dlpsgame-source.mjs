@@ -22,7 +22,36 @@ function extractTitleId(description) {
   return match?.[0]?.toUpperCase() || null;
 }
 
-function parsePostHtml(html, postUrl) {
+const DOWNLOAD_HOSTS = /(?:mega\.nz|1fichier\.com|mediafire\.com|drive\.google\.com|docs\.google\.com|gdrive|pixeldrain\.com|gofile\.io|qiwi\.gg|terabox\.com)/i;
+const DOWNLOAD_MARKERS = /\b(?:download|baixar|descargar|get\s*(?:the\s*)?link|mega|mediafire|google\s*drive|1fichier|pixeldrain|gofile)\b/i;
+
+function normaliseHttpUrl(value, baseUrl) {
+  if (!value || value.startsWith('#') || value.startsWith('javascript:')) return null;
+  try {
+    const url = new URL(value, baseUrl);
+    return /^https?:$/.test(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function isDownloadLink(link, url) {
+  const marker = [
+    link.textContent,
+    link.getAttribute('aria-label'),
+    link.getAttribute('title'),
+    link.getAttribute('class'),
+    link.getAttribute('id'),
+    link.getAttribute('data-url'),
+    link.getAttribute('data-href')
+  ].filter(Boolean).join(' ');
+
+  // Alguns botões usam um redirecionamento no próprio domínio. Nesse caso, o
+  // texto/classe do botão é a indicação confiável de que ele é um download.
+  return DOWNLOAD_HOSTS.test(url) || DOWNLOAD_MARKERS.test(marker);
+}
+
+export function parseDlpsgamePostHtml(html, postUrl) {
   const dom = new JSDOM(html);
   const doc = dom.window.document;
 
@@ -39,45 +68,21 @@ function parsePostHtml(html, postUrl) {
   let description = descEl?.textContent?.trim() || '';
   if (description.length > 500) description = description.substring(0, 500) + '...';
 
-  // Links de download - procura padrões comuns
+  // Procura somente no conteúdo do post, para não confundir a navegação do
+  // site com links do jogo. Links internos de redirecionamento também entram
+  // quando o próprio botão indica download.
   const downloadLinks = [];
-  const links = doc.querySelectorAll('a[href*="download"], a[href*="mega.nz"], a[href*="1fichier"], a[href*="mediafire"], a[href*="gdrive"], a[href*="drive.google"]');
-  
-  links.forEach(link => {
-    const href = link.getAttribute('href');
-    const text = link.textContent?.trim() || '';
-    if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
-      let label = text || 'Download';
-      let quality = null;
-      if (/\b(1080|720|4k|hd|fullhd)\b/i.test(label)) quality = label.match(/\b(1080|720|4k|hd|fullhd)\b/i)[0];
-      
-      downloadLinks.push({
-        url: href,
-        label: label,
-        quality: quality || null,
-        language: null
-      });
-    }
-  });
+  const seenUrls = new Set();
+  const content = doc.querySelector('.entry-content, .post-body, .post-content') || doc.body;
+  content.querySelectorAll('a[href]').forEach(link => {
+    const href = normaliseHttpUrl(link.getAttribute('href'), postUrl);
+    if (!href || !isDownloadLink(link, href) || seenUrls.has(href)) return;
 
-  // Se não encontrou links de download, tenta extrair do conteúdo
-  if (downloadLinks.length === 0) {
-    const content = doc.querySelector('.entry-content, .post-body, .post-content');
-    if (content) {
-      const allLinks = content.querySelectorAll('a');
-      allLinks.forEach(link => {
-        const href = link.getAttribute('href');
-        if (href && (href.includes('http') || href.includes('//')) && !href.includes('dlpsgame.com')) {
-          downloadLinks.push({
-            url: href,
-            label: link.textContent?.trim() || 'Download',
-            quality: null,
-            language: null
-          });
-        }
-      });
-    }
-  }
+    seenUrls.add(href);
+    const label = link.textContent?.trim() || link.getAttribute('aria-label') || link.getAttribute('title') || 'Download';
+    const quality = label.match(/\b(2160p|1080p|720p|4k|full\s*hd|hd)\b/i)?.[0] || null;
+    downloadLinks.push({ url: href, label, quality, language: null });
+  });
 
   // Extrair titleId da descrição
   const fullDescription = doc.querySelector('.entry-content, .post-body, .post-content')?.textContent || description;
@@ -96,7 +101,7 @@ function parsePostHtml(html, postUrl) {
 
 async function fetchPostPage(postUrl) {
   const html = await fetchHtml(postUrl);
-  return parsePostHtml(html, postUrl);
+  return parseDlpsgamePostHtml(html, postUrl);
 }
 
 function parsePostListHtml(html) {
