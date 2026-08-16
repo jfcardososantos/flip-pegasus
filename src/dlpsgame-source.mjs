@@ -1,5 +1,5 @@
-import { normalisePost } from './catalog.mjs';
 import { JSDOM } from 'jsdom';
+import { makeCatalog } from './catalog.mjs';
 
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
@@ -13,7 +13,6 @@ async function fetchHtml(url) {
 }
 
 function extractPostId(url) {
-  // Exemplo: https://dlpsgame.com/blood-omen-legacy-of-kain-ps4-pkg/
   const match = url.match(/\/([^\/]+)\/$/);
   return match?.[1] || null;
 }
@@ -48,7 +47,6 @@ function parsePostHtml(html, postUrl) {
     const href = link.getAttribute('href');
     const text = link.textContent?.trim() || '';
     if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
-      // Tentar identificar a qualidade/label
       let label = text || 'Download';
       let quality = null;
       if (/\b(1080|720|4k|hd|fullhd)\b/i.test(label)) quality = label.match(/\b(1080|720|4k|hd|fullhd)\b/i)[0];
@@ -134,12 +132,12 @@ function parsePostListHtml(html) {
       description,
       url,
       titleId,
-      downloadLinks: [], // Será preenchido quando acessar a página do post
+      downloadLinks: [],
       needsDetail: true
     });
   });
 
-  // Se não encontrou com os seletores acima, tenta um fallback mais genérico
+  // Fallback mais genérico
   if (posts.length === 0) {
     const genericLinks = doc.querySelectorAll('h2 a, h3 a, .post-title a');
     genericLinks.forEach(link => {
@@ -162,20 +160,16 @@ function parsePostListHtml(html) {
   return posts;
 }
 
-// Função para paginação
 function getNextPageUrl(html, currentUrl) {
   const dom = new JSDOM(html);
   const doc = dom.window.document;
   
-  // Tenta encontrar link "Próxima" ou número da página
   const nextLink = doc.querySelector('a.next, a[rel="next"], .blog-pager-older-link, a:contains("Next"), a:contains("Próxima")');
   if (nextLink) {
     const href = nextLink.getAttribute('href');
     if (href && href !== '#') return href;
   }
 
-  // Tenta construir manualmente baseado no padrão de URL
-  const urlObj = new URL(currentUrl);
   const pageMatch = currentUrl.match(/[?&]page=(\d+)/);
   if (pageMatch) {
     const currentPage = parseInt(pageMatch[1]);
@@ -186,11 +180,13 @@ function getNextPageUrl(html, currentUrl) {
   return null;
 }
 
-export async function fetchDlpsgameCatalog({ baseUrl, perPage = 50, onProgress }) {
+export async function fetchDlpsgameCatalog({ baseUrl, categorySlug = 'ps4', perPage = 50, onProgress }) {
   if (!baseUrl) throw new Error('SOURCE_BASE_URL não foi configurada.');
   
-  // Garantir que a URL termine com /
-  const url = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  // Monta a URL: baseUrl + /category/ + categorySlug + /
+  const url = baseUrl.endsWith('/') 
+    ? `${baseUrl}category/${categorySlug}/` 
+    : `${baseUrl}/category/${categorySlug}/`;
   
   console.log(`🔍 Buscando catálogo de ${url}...`);
   
@@ -198,7 +194,6 @@ export async function fetchDlpsgameCatalog({ baseUrl, perPage = 50, onProgress }
   const html = await fetchHtml(url);
   let posts = parsePostListHtml(html);
   let totalPages = 1;
-  let currentPage = 1;
   
   // Tentar descobrir total de páginas
   const dom = new JSDOM(html);

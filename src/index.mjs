@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { makeCatalog } from './catalog.mjs';
 import { fetchWordpressCatalog } from './wordpress-source.mjs';
+import { fetchDlpsgameCatalog, normaliseDlpsgamePost } from './dlpsgame-source.mjs';
 
 const config = {
   port: Number(process.env.PORT || 3000),
@@ -13,7 +14,8 @@ const config = {
   perPage: Number(process.env.SOURCE_PER_PAGE || 100),
   pageConcurrency: Number(process.env.SOURCE_PAGE_CONCURRENCY || 4),
   intervalMs: Math.max(Number(process.env.UPDATE_INTERVAL_MINUTES || 720), 1) * 60_000,
-  updateOnStart: process.env.UPDATE_ON_START !== 'false'
+  updateOnStart: process.env.UPDATE_ON_START !== 'false',
+  sourceType: process.env.SOURCE_TYPE || 'wordpress' // 'wordpress' ou 'dlpsgame'
 };
 const catalogPath = path.join(config.dataDir, 'catalog.json');
 const statusPath = path.join(config.dataDir, 'catalog-status.json');
@@ -46,20 +48,48 @@ async function refresh() {
   };
   await writeJsonAtomically(statusPath, status);
   try {
-    const { games } = await fetchWordpressCatalog({
-      ...config,
-      onProgress: async (progress) => {
-        status = { ...status, ...progress, count: progress.gamesFetched };
-        await writeJsonAtomically(statusPath, status);
-      }
-    });
+    let games = [];
+    let totalPages = 0;
+
+    if (config.sourceType === 'dlpsgame') {
+      // Fonte: DLPSGame
+      const result = await fetchDlpsgameCatalog({
+        baseUrl: config.baseUrl,
+        categorySlug: config.categorySlug,
+        perPage: config.perPage,
+        onProgress: async (progress) => {
+          status = { ...status, ...progress, count: progress.gamesFetched };
+          await writeJsonAtomically(statusPath, status);
+        }
+      });
+      // Converte os jogos do formato DLPSGame para o formato padrão
+      games = result.games.map(normaliseDlpsgamePost);
+      totalPages = status.totalPages || 1;
+    } else {
+      // Fonte: WordPress (padrão)
+      const result = await fetchWordpressCatalog({
+        baseUrl: config.baseUrl,
+        categorySlug: config.categorySlug,
+        perPage: config.perPage,
+        pageConcurrency: config.pageConcurrency,
+        onProgress: async (progress) => {
+          status = { ...status, ...progress, count: progress.gamesFetched };
+          await writeJsonAtomically(statusPath, status);
+        }
+      });
+      games = result.games;
+      totalPages = status.totalPages || 1;
+    }
+
     const catalog = makeCatalog(games, config.catalogName);
     await writeJsonAtomically(catalogPath, catalog);
+    
     status = {
       ...status,
       lastSuccessAt: new Date().toISOString(),
       count: catalog.packages.length,
-      pagesFetched: status.totalPages
+      pagesFetched: totalPages,
+      totalPages: totalPages
     };
     await writeJsonAtomically(statusPath, status);
     console.info(`Catálogo atualizado: ${catalog.packages.length} jogos.`);
@@ -96,6 +126,9 @@ try { status = JSON.parse(await readFile(statusPath, 'utf8')); } catch { /* prim
 if (process.env.RUN_ONCE === 'true') {
   try { await refresh(); process.exit(0); } catch { process.exit(1); }
 }
-server.listen(config.port, () => console.info(`Servidor do catálogo na porta ${config.port}.`));
+server.listen(config.port, () => {
+  console.info(`Servidor do catálogo na porta ${config.port}.`);
+  console.info(`Fonte: ${config.sourceType} (${config.baseUrl}${config.sourceType === 'dlpsgame' ? `category/${config.categorySlug}/` : ''})`);
+});
 if (config.updateOnStart) refresh().catch(() => {});
 setInterval(() => refresh().catch(() => {}), config.intervalMs).unref();
