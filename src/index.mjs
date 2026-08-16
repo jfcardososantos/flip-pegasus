@@ -10,13 +10,21 @@ const config = {
   baseUrl: process.env.SOURCE_BASE_URL || '',
   categorySlug: process.env.SOURCE_CATEGORY || 'ps4',
   perPage: Number(process.env.SOURCE_PER_PAGE || 100),
+  pageConcurrency: Number(process.env.SOURCE_PAGE_CONCURRENCY || 4),
   intervalMs: Math.max(Number(process.env.UPDATE_INTERVAL_MINUTES || 720), 1) * 60_000,
   updateOnStart: process.env.UPDATE_ON_START !== 'false'
 };
 const catalogPath = path.join(config.dataDir, 'catalog.json');
 const statusPath = path.join(config.dataDir, 'catalog-status.json');
 let refreshing = false;
-let status = { lastAttemptAt: null, lastSuccessAt: null, lastError: null, count: 0 };
+let status = {
+  lastAttemptAt: null,
+  lastSuccessAt: null,
+  lastError: null,
+  count: 0,
+  pagesFetched: 0,
+  totalPages: 0
+};
 
 async function writeJsonAtomically(file, value) {
   const temporary = `${file}.tmp`;
@@ -27,12 +35,31 @@ async function writeJsonAtomically(file, value) {
 async function refresh() {
   if (refreshing) return { skipped: true };
   refreshing = true;
-  status = { ...status, lastAttemptAt: new Date().toISOString(), lastError: null };
+  status = {
+    ...status,
+    lastAttemptAt: new Date().toISOString(),
+    lastError: null,
+    count: 0,
+    pagesFetched: 0,
+    totalPages: 0
+  };
+  await writeJsonAtomically(statusPath, status);
   try {
-    const { games, sourceUrl } = await fetchWordpressCatalog(config);
+    const { games, sourceUrl } = await fetchWordpressCatalog({
+      ...config,
+      onProgress: async (progress) => {
+        status = { ...status, ...progress, count: progress.gamesFetched };
+        await writeJsonAtomically(statusPath, status);
+      }
+    });
     const catalog = makeCatalog(games, sourceUrl);
     await writeJsonAtomically(catalogPath, catalog);
-    status = { ...status, lastSuccessAt: new Date().toISOString(), count: catalog.count };
+    status = {
+      ...status,
+      lastSuccessAt: new Date().toISOString(),
+      count: catalog.count,
+      pagesFetched: status.totalPages
+    };
     await writeJsonAtomically(statusPath, status);
     console.info(`Catálogo atualizado: ${catalog.count} jogos.`);
     return { count: catalog.count };

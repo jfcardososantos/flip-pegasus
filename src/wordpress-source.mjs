@@ -15,7 +15,9 @@ async function requestJson(url) {
   return response;
 }
 
-export async function fetchWordpressCatalog({ baseUrl, categorySlug, perPage }) {
+const postFields = 'id,date,modified,link,title,excerpt,featured_media,_embedded';
+
+export async function fetchWordpressCatalog({ baseUrl, categorySlug, perPage, pageConcurrency = 4, onProgress }) {
   if (!baseUrl) throw new Error('SOURCE_BASE_URL não foi configurada.');
   const categoryResponse = await requestJson(apiUrl(baseUrl, 'categories', { slug: categorySlug, per_page: 100 }));
   const categories = await categoryResponse.json();
@@ -23,15 +25,29 @@ export async function fetchWordpressCatalog({ baseUrl, categorySlug, perPage }) 
 
   const categoryId = categories[0].id;
   const first = await requestJson(apiUrl(baseUrl, 'posts', {
-    categories: categoryId, per_page: Math.min(perPage, 100), page: 1, _embed: true
+    categories: categoryId, per_page: Math.min(perPage, 100), page: 1, _embed: true, _fields: postFields
   }));
   const totalPages = Number(first.headers.get('x-wp-totalpages') || 1);
   const pages = [await first.json()];
-  for (let page = 2; page <= totalPages; page += 1) {
-    const response = await requestJson(apiUrl(baseUrl, 'posts', {
-      categories: categoryId, per_page: Math.min(perPage, 100), page, _embed: true
+  let gamesFetched = pages[0].length;
+  await onProgress?.({ totalPages, pagesFetched: 1, gamesFetched });
+  const pageNumbers = Array.from({ length: totalPages - 1 }, (_, index) => index + 2);
+  const concurrency = Math.max(1, Math.min(Number(pageConcurrency) || 1, 10));
+  for (let index = 0; index < pageNumbers.length; index += concurrency) {
+    const batch = pageNumbers.slice(index, index + concurrency);
+    const results = await Promise.all(batch.map(async (page) => {
+      const response = await requestJson(apiUrl(baseUrl, 'posts', {
+        categories: categoryId, per_page: Math.min(perPage, 100), page, _embed: true, _fields: postFields
+      }));
+      return response.json();
     }));
-    pages.push(await response.json());
+    pages.push(...results);
+    gamesFetched += results.reduce((total, posts) => total + posts.length, 0);
+    await onProgress?.({
+      totalPages,
+      pagesFetched: Math.min(index + concurrency + 1, totalPages),
+      gamesFetched
+    });
   }
 
   const games = pages.flat().map((post) => {

@@ -5,7 +5,7 @@ Serviço Docker que coleta **metadados** de posts de uma categoria WordPress aut
 ## Saída
 
 - `GET /catalog.json` — catálogo atual.
-- `GET /health` — estado da última atualização.
+- `GET /health` — estado e progresso da atualização (`count`, `pagesFetched` e `totalPages`).
 - `POST /refresh` — atualização manual pública.
 
 Cada item traz `id`, `title`, `platform`, `description`, `cover` e a URL de origem do post. O arquivo também tem `checksum`, `generatedAt` e `count`.
@@ -28,7 +28,7 @@ Depois, abra `http://localhost:3000/health`. O catálogo estará em `http://loca
 3. Configure as variáveis de `.env.example`, principalmente `SOURCE_BASE_URL`, `SOURCE_CATEGORY=ps4` e `UPDATE_INTERVAL_MINUTES`.
 4. Exponha a porta `3000` e aponte o Pegasus para `https://seu-dominio/catalog.json`.
 
-Use `UPDATE_INTERVAL_MINUTES=720` para duas atualizações diárias. A escrita do arquivo é atômica, portanto uma leitura nunca recebe JSON parcial. Como `/refresh` é público, não o exponha caso não queira que terceiros antecipem uma atualização.
+Use `UPDATE_INTERVAL_MINUTES=720` para duas atualizações diárias. A escrita do arquivo é atômica, portanto uma leitura nunca recebe JSON parcial. `SOURCE_PAGE_CONCURRENCY=4` acelera a primeira sincronização sem disparar todas as páginas de uma vez. Como `/refresh` é público, não o exponha caso não queira que terceiros antecipem uma atualização.
 
 ## Fonte WordPress
 
