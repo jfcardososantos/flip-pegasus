@@ -15,8 +15,18 @@ test('normaliza post WordPress sem incluir links de download', () => {
 });
 
 test('ordena o catálogo por título', () => {
-  const catalog = makeCatalog([{ title: 'Zelda' }, { title: 'Astro' }], 'https://example.test');
-  assert.equal(catalog.games[0].title, 'Astro');
-  assert.equal(catalog.count, 2);
-  assert.match(catalog.checksum, /^[a-f0-9]{64}$/);
+  const catalog = makeCatalog([
+    { title: 'Zelda', description: '', cover: null },
+    { title: 'Astro DLC', description: 'Código CUSA12345', cover: 'https://example.test/astro.jpg' }
+  ]);
+  assert.deepEqual(catalog, {
+    name: 'PS4 Catalog', version: 1,
+    packages: [
+      {
+        titleId: 'CUSA12345', title: 'Astro DLC', downloadLinks: [], category: 'dlc',
+        posterUrl: 'https://example.test/astro.jpg', description: 'Código CUSA12345', downloadSource: null
+      },
+      { title: 'Zelda', downloadLinks: [], category: 'game', posterUrl: null, description: '', downloadSource: null }
+    ]
+  });
 });

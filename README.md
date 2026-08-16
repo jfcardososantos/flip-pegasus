@@ -8,7 +8,7 @@ Serviço Docker que coleta **metadados** de posts de uma categoria WordPress aut
 - `GET /health` — estado e progresso da atualização (`count`, `pagesFetched` e `totalPages`).
 - `POST /refresh` — atualização manual pública.
 
-Cada item traz `id`, `title`, `platform`, `description`, `cover` e a URL de origem do post. O arquivo também tem `checksum`, `generatedAt` e `count`.
+O arquivo segue o envelope do Pegasus: `name`, `version` e `packages`. Cada pacote contém `title`, `titleId` quando identificado, `category`, `posterUrl` e `description`. `downloadLinks` fica vazio e `downloadSource` é `null`.
 
 ## Desenvolvimento local
 
@@ -32,4 +32,4 @@ Use `UPDATE_INTERVAL_MINUTES=720` para duas atualizações diárias. A escrita d
 
 ## Fonte WordPress
 
-O coletor utiliza a API pública padrão do WordPress (`/wp-json/wp/v2`), resolve a categoria pelo slug e pagina todos os posts. Para uma fonte que não seja WordPress, substitua somente `src/wordpress-source.mjs`, preservando o retorno `{ games, sourceUrl }`.
+O coletor utiliza a API pública padrão do WordPress (`/wp-json/wp/v2`), resolve a categoria pelo slug e pagina todos os posts. Para uma fonte que não seja WordPress, substitua somente `src/wordpress-source.mjs`, preservando o retorno `{ games }`.

@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 const stripHtml = (value = '') => value
   .replace(/<[^>]*>/g, ' ')
   .replace(/https?:\/\/[^\s<]+/gi, '')
@@ -27,17 +25,25 @@ export function normalisePost(post, mediaById = new Map()) {
   };
 }
 
-export function makeCatalog(games, sourceUrl) {
-  const sorted = [...games].sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
-  const generatedAt = new Date().toISOString();
-  const payload = {
-    schemaVersion: 1,
-    platform: 'PS4',
-    generatedAt,
-    source: sourceUrl,
-    count: sorted.length,
-    games: sorted
+function titleIdFrom(game) {
+  const match = `${game.title}\n${game.description}`.match(/\b(?:CUSA|PCAS|PLAS|PPSA)\d{5}\b/i);
+  return match?.[0].toUpperCase();
+}
+
+function packageFromGame(game) {
+  const titleId = titleIdFrom(game);
+  return {
+    ...(titleId ? { titleId } : {}),
+    title: game.title,
+    downloadLinks: [],
+    category: /\b(dlc|add[ -]?on)\b/i.test(game.title) ? 'dlc' : 'game',
+    posterUrl: game.cover,
+    description: game.description,
+    downloadSource: null
   };
-  const digestInput = JSON.stringify({ ...payload, generatedAt: undefined });
-  return { ...payload, checksum: createHash('sha256').update(digestInput).digest('hex') };
+}
+
+export function makeCatalog(games, name = 'PS4 Catalog') {
+  const sorted = [...games].sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
+  return { name, version: 1, packages: sorted.map(packageFromGame) };
 }

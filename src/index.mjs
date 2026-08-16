@@ -9,6 +9,7 @@ const config = {
   dataDir: process.env.DATA_DIR || './data',
   baseUrl: process.env.SOURCE_BASE_URL || '',
   categorySlug: process.env.SOURCE_CATEGORY || 'ps4',
+  catalogName: process.env.CATALOG_NAME || 'PS4 Catalog',
   perPage: Number(process.env.SOURCE_PER_PAGE || 100),
   pageConcurrency: Number(process.env.SOURCE_PAGE_CONCURRENCY || 4),
   intervalMs: Math.max(Number(process.env.UPDATE_INTERVAL_MINUTES || 720), 1) * 60_000,
@@ -45,24 +46,24 @@ async function refresh() {
   };
   await writeJsonAtomically(statusPath, status);
   try {
-    const { games, sourceUrl } = await fetchWordpressCatalog({
+    const { games } = await fetchWordpressCatalog({
       ...config,
       onProgress: async (progress) => {
         status = { ...status, ...progress, count: progress.gamesFetched };
         await writeJsonAtomically(statusPath, status);
       }
     });
-    const catalog = makeCatalog(games, sourceUrl);
+    const catalog = makeCatalog(games, config.catalogName);
     await writeJsonAtomically(catalogPath, catalog);
     status = {
       ...status,
       lastSuccessAt: new Date().toISOString(),
-      count: catalog.count,
+      count: catalog.packages.length,
       pagesFetched: status.totalPages
     };
     await writeJsonAtomically(statusPath, status);
-    console.info(`Catálogo atualizado: ${catalog.count} jogos.`);
-    return { count: catalog.count };
+    console.info(`Catálogo atualizado: ${catalog.packages.length} jogos.`);
+    return { count: catalog.packages.length };
   } catch (error) {
     status = { ...status, lastError: error.message };
     await writeJsonAtomically(statusPath, status);

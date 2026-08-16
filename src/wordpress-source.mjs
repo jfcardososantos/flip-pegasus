@@ -55,5 +55,5 @@ export async function fetchWordpressCatalog({ baseUrl, categorySlug, perPage, pa
     const media = new Map(embeddedMedia ? [[post.featured_media, embeddedMedia]] : []);
     return normalisePost(post, media);
   });
-  return { games, sourceUrl: new URL(`/category/${categorySlug}/`, baseUrl).toString() };
+  return { games };
 }
