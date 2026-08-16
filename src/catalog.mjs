@@ -105,14 +105,17 @@ function titleIdFrom(game) {
 
 function packageFromGame(game) {
   const titleId = titleIdFrom(game);
+  const sourceUrl = game.source?.url || null;
   return {
     ...(titleId ? { titleId } : {}),
     title: game.title,
-    downloadLinks: game.downloadLinks || [],
+    // O catálogo aponta somente para a página pública do jogo. Não expõe
+    // redirecionadores, encurtadores ou URLs temporárias de terceiros.
+    downloadLinks: sourceUrl ? [{ name: 'Abrir página do jogo', url: sourceUrl }] : [],
     category: /\b(dlc|add[ -]?on)\b/i.test(game.title) ? 'dlc' : 'game',
     posterUrl: game.cover || null,
     description: game.description,
-    downloadSource: game.source?.url || null
+    downloadSource: sourceUrl
   };
 }
 

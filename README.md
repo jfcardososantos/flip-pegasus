@@ -1,6 +1,6 @@
 # Serviço de catálogo PS4
 
-Serviço Docker que coleta **metadados** de posts de uma categoria WordPress autorizada, gera um `catalog.json` persistente e o atualiza automaticamente. Não extrai ou publica links de download.
+Serviço Docker que coleta **metadados** de posts de uma categoria WordPress autorizada, gera um `catalog.json` persistente e o atualiza automaticamente. Cada item aponta para a página pública original do jogo; não extrai nem publica links de download de terceiros.
 
 ## Saída
 
@@ -8,7 +8,7 @@ Serviço Docker que coleta **metadados** de posts de uma categoria WordPress aut
 - `GET /health` — estado e progresso da atualização (`count`, `pagesFetched` e `totalPages`).
 - `POST /refresh` — atualização manual pública.
 
-O arquivo segue o envelope do Pegasus: `name`, `version` e `packages`. Cada pacote contém `title`, `titleId` quando identificado, `category`, `posterUrl` e `description`. A capa é obtida da imagem destacada do post ou, na ausência dela, da primeira imagem no conteúdo. `downloadLinks` fica vazio e `downloadSource` é `null`.
+O arquivo segue o envelope do Pegasus: `name`, `version` e `packages`. Cada pacote contém `title`, `titleId` quando identificado, `category`, `posterUrl` e `description`. A capa é obtida da imagem destacada do post ou, na ausência dela, da primeira imagem no conteúdo. `downloadLinks` contém somente a página pública do jogo e `downloadSource` repete essa URL.
 
 ## Desenvolvimento local
 

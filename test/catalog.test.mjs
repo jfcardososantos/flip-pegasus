@@ -84,14 +84,15 @@ describe('catalog', () => {
     assert.strictEqual(result.titleId, 'CUSA98765');
   });
 
-  it('makeCatalog mantém posterUrl e downloadLinks', () => {
+  it('makeCatalog aponta somente para a página pública do jogo', () => {
     const games = [
       {
         title: 'Z Game',
         cover: 'https://example.com/cover.jpg',
         description: 'Description',
-        downloadLinks: [{ url: 'https://example.com/link', label: 'Download' }],
-        titleId: 'CUSA11111'
+        downloadLinks: [{ url: 'https://host-terceiro.example/link', name: 'Download' }],
+        titleId: 'CUSA11111',
+        source: { url: 'https://example.com/jogo/z-game' }
       }
     ];
     const catalog = makeCatalog(games, 'Test Catalog');
@@ -99,7 +100,10 @@ describe('catalog', () => {
     assert.strictEqual(catalog.packages[0].title, 'Z Game');
     assert.strictEqual(catalog.packages[0].posterUrl, 'https://example.com/cover.jpg');
     assert.strictEqual(catalog.packages[0].downloadLinks.length, 1);
-    assert.strictEqual(catalog.packages[0].downloadLinks[0].url, 'https://example.com/link');
+    assert.deepStrictEqual(catalog.packages[0].downloadLinks, [
+      { name: 'Abrir página do jogo', url: 'https://example.com/jogo/z-game' }
+    ]);
+    assert.strictEqual(catalog.packages[0].downloadSource, 'https://example.com/jogo/z-game');
     assert.strictEqual(catalog.packages[0].titleId, 'CUSA11111');
   });
 });

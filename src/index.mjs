@@ -58,7 +58,6 @@ async function refresh() {
       const result = await fetchDlpsgameCatalog({
         baseUrl: config.baseUrl,
         categorySlug: config.categorySlug,
-        perPage: config.perPage,
         onProgress: async (progress) => {
           status = { ...status, ...progress, count: progress.gamesFetched };
           await writeJsonAtomically(statusPath, status);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseDlpsgamePostHtml } from '../src/dlpsgame-source.mjs';
+import { getNextPageUrl, parseDlpsgamePostHtml } from '../src/dlpsgame-source.mjs';
 
 test('extrai botões de download, inclusive redirecionamentos internos', () => {
   const post = parseDlpsgamePostHtml(`
@@ -56,4 +56,15 @@ test('não duplica links nem importa a navegação fora do conteúdo', () => {
 
   assert.equal(post.downloadLinks.length, 1);
   assert.equal(post.downloadLinks[0].url, 'https://host.example/file');
+});
+
+test('encontra a próxima página em paginação por caminho', () => {
+  const nextUrl = getNextPageUrl(`
+    <nav class="pagination">
+      <a href="/category/ps4/">1</a>
+      <a href="/category/ps4/page/2/">2</a>
+      <a href="/category/ps4/page/2/" rel="next">Next</a>
+    </nav>
+  `, 'https://dlpsgame.com/category/ps4/');
+  assert.equal(nextUrl, 'https://dlpsgame.com/category/ps4/page/2/');
 });

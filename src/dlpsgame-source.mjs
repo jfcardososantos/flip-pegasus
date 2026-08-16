@@ -171,27 +171,35 @@ function parsePostListHtml(html) {
   return posts;
 }
 
-function getNextPageUrl(html, currentUrl) {
+function pageNumberFromUrl(url) {
+  const match = url.match(/(?:\/page\/|[?&]page=)(\d+)/i);
+  return match ? Number(match[1]) : 1;
+}
+
+export function getNextPageUrl(html, currentUrl) {
   const dom = new JSDOM(html);
   const doc = dom.window.document;
-  
-  const nextLink = doc.querySelector('a.next, a[rel="next"], .blog-pager-older-link, a:contains("Next"), a:contains("Próxima")');
+  const candidates = [...doc.querySelectorAll('a[href]')];
+  const nextLink = candidates.find((link) =>
+    link.matches('a.next, a[rel="next"], .blog-pager-older-link') ||
+    /^(?:next|older|próxim[ao]|seguinte|›|»)/i.test(link.textContent.trim())
+  );
   if (nextLink) {
     const href = nextLink.getAttribute('href');
-    if (href && href !== '#') return href;
+    if (href && href !== '#') return new URL(href, currentUrl).href;
   }
 
-  const pageMatch = currentUrl.match(/[?&]page=(\d+)/);
-  if (pageMatch) {
-    const currentPage = parseInt(pageMatch[1]);
-    const nextPage = currentPage + 1;
-    return currentUrl.replace(/[?&]page=\d+/, `?page=${nextPage}`);
-  }
+  const currentPage = pageNumberFromUrl(currentUrl);
+  const numberedNext = candidates.find((link) => {
+    try { return pageNumberFromUrl(new URL(link.getAttribute('href'), currentUrl).href) === currentPage + 1; }
+    catch { return false; }
+  });
+  if (numberedNext) return new URL(numberedNext.getAttribute('href'), currentUrl).href;
 
   return null;
 }
 
-export async function fetchDlpsgameCatalog({ baseUrl, categorySlug = 'ps4', perPage = 50, onProgress }) {
+export async function fetchDlpsgameCatalog({ baseUrl, categorySlug = 'ps4', onProgress }) {
   if (!baseUrl) throw new Error('SOURCE_BASE_URL não foi configurada.');
   
   // Monta a URL: baseUrl + /category/ + categorySlug + /
@@ -225,9 +233,11 @@ export async function fetchDlpsgameCatalog({ baseUrl, categorySlug = 'ps4', perP
   let allPosts = [...posts];
   let nextUrl = getNextPageUrl(html, url);
   let page = 2;
+  const visitedPageUrls = new Set([url]);
   
-  while (nextUrl && page <= perPage && allPosts.length < 500) {
+  while (nextUrl && !visitedPageUrls.has(nextUrl)) {
     try {
+      visitedPageUrls.add(nextUrl);
       console.log(`📄 Buscando página ${page}...`);
       const pageHtml = await fetchHtml(nextUrl);
       const pagePosts = parsePostListHtml(pageHtml);
@@ -244,6 +254,10 @@ export async function fetchDlpsgameCatalog({ baseUrl, categorySlug = 'ps4', perP
       break;
     }
   }
+
+  // A paginação pode repetir posts em páginas consecutivas. O JSON final tem
+  // um único registro por página de jogo, sem limite de quantidade.
+  allPosts = [...new Map(allPosts.map((post) => [post.url, post])).values()];
   
   console.log(`✅ Encontrados ${allPosts.length} jogos no total.`);
   
