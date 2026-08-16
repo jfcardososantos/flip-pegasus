@@ -6,13 +6,30 @@ function apiUrl(base, path, params = {}) {
   return url;
 }
 
-async function requestJson(url) {
-  const response = await fetch(url, {
-    headers: { accept: 'application/json', 'user-agent': 'ps4-catalog-service/1.0' },
-    signal: AbortSignal.timeout(30_000)
-  });
-  if (!response.ok) throw new Error(`Fonte respondeu ${response.status} em ${url}`);
-  return response;
+async function requestJson(url, attempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: { accept: 'application/json', 'user-agent': 'ps4-catalog-service/1.0' },
+        signal: AbortSignal.timeout(30_000)
+      });
+      if (!response.ok) {
+        const error = new Error(`Fonte respondeu ${response.status} em ${url}`);
+        error.retryAfterMs = Number(response.headers.get('retry-after') || 0) * 1_000;
+        throw error;
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        const waitMs = error.retryAfterMs || attempt * 5_000;
+        console.warn(`⚠️ Tentativa ${attempt}/${attempts} falhou em ${url}; aguardando ${Math.ceil(waitMs / 1_000)}s.`);
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      }
+    }
+  }
+  throw lastError;
 }
 
 // Campos padrão + campos ACF (se existirem)

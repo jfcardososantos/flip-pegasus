@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getNextPageUrl, parseDlpsgamePostHtml } from '../src/dlpsgame-source.mjs';
+import { getNextPageUrl, normaliseDlpsgamePost, parseDlpsgamePostHtml } from '../src/dlpsgame-source.mjs';
 
 test('extrai botões de download, inclusive redirecionamentos internos', () => {
   const post = parseDlpsgamePostHtml(`
@@ -75,4 +75,12 @@ test('usa a contagem total indicada pela categoria, não só os links visíveis'
     <a class="nextpostslink" rel="next" href="/category/ps4/page/2/">»</a>
   `, 'https://dlpsgame.com/category/ps4/');
   assert.equal(nextUrl, 'https://dlpsgame.com/category/ps4/page/2/');
+});
+
+test('preserva a página pública do jogo retornada pela API', () => {
+  const game = normaliseDlpsgamePost({
+    title: 'Jogo',
+    source: { url: 'https://dlpsgame.com/jogo/', publishedAt: '2026-01-01T00:00:00Z' }
+  });
+  assert.equal(game.source.url, 'https://dlpsgame.com/jogo/');
 });

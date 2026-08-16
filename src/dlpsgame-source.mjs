@@ -1,5 +1,6 @@
 import { JSDOM } from 'jsdom';
 import { makeCatalog } from './catalog.mjs';
+import { fetchWordpressCatalog } from './wordpress-source.mjs';
 
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
@@ -213,6 +214,22 @@ export function getNextPageUrl(html, currentUrl) {
 
 export async function fetchDlpsgameCatalog({ baseUrl, categorySlug = 'ps4', onProgress }) {
   if (!baseUrl) throw new Error('SOURCE_BASE_URL não foi configurada.');
+
+  // O DLPSGame expõe sua própria API WordPress. Ela informa a quantidade
+  // total de posts e evita a limitação agressiva aplicada à navegação HTML.
+  // A busca é sequencial para respeitar o limite da origem. O parser HTML só
+  // fica disponível como contingência explícita para diagnóstico.
+  if (process.env.DLPSGAME_USE_HTML !== 'true') {
+    console.log(`🔍 Buscando catálogo via API pública do DLPSGame (${categorySlug})...`);
+    return fetchWordpressCatalog({
+      baseUrl,
+      categorySlug,
+      perPage: 100,
+      pageConcurrency: 1,
+      onProgress
+    });
+  }
+  console.warn('⚠️ Usando coletor HTML legado por DLPSGAME_USE_HTML=true.');
   
   // Monta a URL: baseUrl + /category/ + categorySlug + /
   const url = baseUrl.endsWith('/') 
@@ -300,9 +317,9 @@ export function normaliseDlpsgamePost(post) {
     downloadLinks,
     titleId,
     source: {
-      url: post.url || null,
-      publishedAt: post.date || null,
-      updatedAt: post.modified || null
+      url: post.source?.url || post.url || null,
+      publishedAt: post.source?.publishedAt || post.date || null,
+      updatedAt: post.source?.updatedAt || post.modified || null
     }
   };
 }
