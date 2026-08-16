@@ -8,5 +8,10 @@
     "update": "RUN_ONCE=true node src/index.mjs",
     "test": "node --test"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "jsdom": "^30.0.1"
+  }
 }

@@ -15,7 +15,8 @@ async function requestJson(url) {
   return response;
 }
 
-const postFields = 'id,date,modified,link,title,excerpt,featured_media,_embedded';
+// Campos padrão + campos ACF (se existirem)
+const postFields = 'id,date,modified,link,title,excerpt,content,featured_media,_embedded,acf,meta';
 
 export async function fetchWordpressCatalog({ baseUrl, categorySlug, perPage, pageConcurrency = 4, onProgress }) {
   if (!baseUrl) throw new Error('SOURCE_BASE_URL não foi configurada.');

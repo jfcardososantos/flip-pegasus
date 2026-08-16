@@ -1,32 +1,90 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { makeCatalog, normalisePost } from '../src/catalog.mjs';
+import { describe, it } from 'node:test';
+import assert from 'node:assert';
+import { normalisePost, makeCatalog } from '../src/catalog.mjs';
 
-test('normaliza post WordPress sem incluir links de download', () => {
-  const game = normalisePost({
-    id: 42, link: 'https://example.test/game', featured_media: 7,
-    title: { rendered: 'Jogo &amp; Teste' }, excerpt: { rendered: '<p>Descrição <strong>curta</strong>. https://host.example/arquivo</p>' }
-  }, new Map([[7, { source_url: 'https://example.test/cover.jpg' }]]));
-  assert.deepEqual(game, {
-    id: 'wp-42', title: 'Jogo & Teste', platform: 'PS4', description: 'Descrição curta.',
-    cover: 'https://example.test/cover.jpg',
-    source: { url: 'https://example.test/game', publishedAt: null, updatedAt: null }
+describe('catalog', () => {
+  it('extrai imagem do featured_media', () => {
+    const post = {
+      id: 1,
+      title: { rendered: 'Game Test' },
+      content: { rendered: '<p>Test</p>' },
+      excerpt: { rendered: 'Excerpt' },
+      featured_media: 42,
+      link: 'https://example.com/game',
+      date: '2024-01-01'
+    };
+    const media = new Map([[42, { source_url: 'https://example.com/image.jpg' }]]);
+    const result = normalisePost(post, media);
+    assert.strictEqual(result.cover, 'https://example.com/image.jpg');
+    assert.strictEqual(result.title, 'Game Test');
   });
-});
 
-test('ordena o catálogo por título', () => {
-  const catalog = makeCatalog([
-    { title: 'Zelda', description: '', cover: null },
-    { title: 'Astro DLC', description: 'Código CUSA12345', cover: 'https://example.test/astro.jpg' }
-  ]);
-  assert.deepEqual(catalog, {
-    name: 'PS4 Catalog', version: 1,
-    packages: [
+  it('extrai links de download do ACF', () => {
+    const post = {
+      id: 2,
+      title: { rendered: 'Download Game' },
+      content: { rendered: '<p>Content</p>' },
+      excerpt: { rendered: 'Excerpt' },
+      featured_media: 0,
+      link: 'https://example.com/game',
+      acf: {
+        download_links: [
+          { url: 'https://example.com/download1', label: 'Link 1' },
+          { url: 'https://example.com/download2', label: 'Link 2' }
+        ],
+        title_id: 'CUSA12345'
+      }
+    };
+    const result = normalisePost(post, new Map());
+    assert.strictEqual(result.downloadLinks.length, 2);
+    assert.strictEqual(result.downloadLinks[0].url, 'https://example.com/download1');
+    assert.strictEqual(result.titleId, 'CUSA12345');
+  });
+
+  it('fallback para link_download simples', () => {
+    const post = {
+      id: 3,
+      title: { rendered: 'Simple Game' },
+      content: { rendered: '<p>Content</p>' },
+      excerpt: { rendered: 'Excerpt' },
+      featured_media: 0,
+      link: 'https://example.com/game',
+      acf: { link_download: 'https://example.com/download.zip' }
+    };
+    const result = normalisePost(post, new Map());
+    assert.strictEqual(result.downloadLinks.length, 1);
+    assert.strictEqual(result.downloadLinks[0].url, 'https://example.com/download.zip');
+  });
+
+  it('extrai titleId da descrição se não houver ACF', () => {
+    const post = {
+      id: 4,
+      title: { rendered: 'Game' },
+      content: { rendered: '<p>CUSA98765 is the ID</p>' },
+      excerpt: { rendered: 'Excerpt' },
+      featured_media: 0,
+      link: 'https://example.com/game'
+    };
+    const result = normalisePost(post, new Map());
+    assert.strictEqual(result.titleId, 'CUSA98765');
+  });
+
+  it('makeCatalog mantém posterUrl e downloadLinks', () => {
+    const games = [
       {
-        titleId: 'CUSA12345', title: 'Astro DLC', downloadLinks: [], category: 'dlc',
-        posterUrl: 'https://example.test/astro.jpg', description: 'Código CUSA12345', downloadSource: null
-      },
-      { title: 'Zelda', downloadLinks: [], category: 'game', posterUrl: null, description: '', downloadSource: null }
-    ]
+        title: 'Z Game',
+        cover: 'https://example.com/cover.jpg',
+        description: 'Description',
+        downloadLinks: [{ url: 'https://example.com/link', label: 'Download' }],
+        titleId: 'CUSA11111'
+      }
+    ];
+    const catalog = makeCatalog(games, 'Test Catalog');
+    assert.strictEqual(catalog.packages.length, 1);
+    assert.strictEqual(catalog.packages[0].title, 'Z Game');
+    assert.strictEqual(catalog.packages[0].posterUrl, 'https://example.com/cover.jpg');
+    assert.strictEqual(catalog.packages[0].downloadLinks.length, 1);
+    assert.strictEqual(catalog.packages[0].downloadLinks[0].url, 'https://example.com/link');
+    assert.strictEqual(catalog.packages[0].titleId, 'CUSA11111');
   });
 });

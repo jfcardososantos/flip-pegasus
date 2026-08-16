@@ -8,7 +8,7 @@ Serviço Docker que coleta **metadados** de posts de uma categoria WordPress aut
 - `GET /health` — estado e progresso da atualização (`count`, `pagesFetched` e `totalPages`).
 - `POST /refresh` — atualização manual pública.
 
-O arquivo segue o envelope do Pegasus: `name`, `version` e `packages`. Cada pacote contém `title`, `titleId` quando identificado, `category`, `posterUrl` e `description`. `downloadLinks` fica vazio e `downloadSource` é `null`.
+O arquivo segue o envelope do Pegasus: `name`, `version` e `packages`. Cada pacote contém `title`, `titleId` quando identificado, `category`, `posterUrl` e `description`. A capa é obtida da imagem destacada do post ou, na ausência dela, da primeira imagem no conteúdo. `downloadLinks` fica vazio e `downloadSource` é `null`.
 
 ## Desenvolvimento local
 
