@@ -5,17 +5,19 @@ import { makeCatalog } from './catalog.mjs';
 import { fetchWordpressCatalog } from './wordpress-source.mjs';
 import { fetchDlpsgameCatalog, normaliseDlpsgamePost } from './dlpsgame-source.mjs';
 
+const baseUrl = process.env.SOURCE_BASE_URL || '';
+const sourceType = process.env.SOURCE_TYPE || (/^https?:\/\/(?:www\.)?dlpsgame\.com(?:\/|$)/i.test(baseUrl) ? 'dlpsgame' : 'wordpress');
 const config = {
   port: Number(process.env.PORT || 3000),
   dataDir: process.env.DATA_DIR || './data',
-  baseUrl: process.env.SOURCE_BASE_URL || '',
+  baseUrl,
   categorySlug: process.env.SOURCE_CATEGORY || 'ps4',
   catalogName: process.env.CATALOG_NAME || 'PS4 Catalog',
   perPage: Number(process.env.SOURCE_PER_PAGE || 100),
   pageConcurrency: Number(process.env.SOURCE_PAGE_CONCURRENCY || 4),
   intervalMs: Math.max(Number(process.env.UPDATE_INTERVAL_MINUTES || 720), 1) * 60_000,
   updateOnStart: process.env.UPDATE_ON_START !== 'false',
-  sourceType: process.env.SOURCE_TYPE || 'wordpress' // 'wordpress' ou 'dlpsgame'
+  sourceType // 'wordpress' ou 'dlpsgame'
 };
 const catalogPath = path.join(config.dataDir, 'catalog.json');
 const statusPath = path.join(config.dataDir, 'catalog-status.json');

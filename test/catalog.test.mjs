@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { normalisePost, makeCatalog } from '../src/catalog.mjs';
+import { extractLinksFromHtml, normalisePost, makeCatalog } from '../src/catalog.mjs';
 
 describe('catalog', () => {
   it('extrai imagem do featured_media', () => {
@@ -56,6 +56,19 @@ describe('catalog', () => {
     assert.strictEqual(result.downloadLinks.length, 1);
     assert.strictEqual(result.downloadLinks[0].url, 'https://example.com/download.zip');
     assert.strictEqual(result.downloadLinks[0].name, 'Download');
+  });
+
+  it('extrai qualquer link HTTP/HTTPS publicado no HTML do post', () => {
+    const links = extractLinksFromHtml(`
+      <p><a href="https://host-novo.example/arquivo">Parte 1</a></p>
+      <button data-url="https://outro-host.example/arquivo">Parte 2</button>
+      <iframe src="/redirecionar?id=3" title="Parte 3"></iframe>
+    `, 'https://dlpsgame.com/post/');
+    assert.deepStrictEqual(links, [
+      { name: 'Parte 1', url: 'https://host-novo.example/arquivo' },
+      { name: 'Parte 2', url: 'https://outro-host.example/arquivo' },
+      { name: 'Parte 3', url: 'https://dlpsgame.com/redirecionar?id=3' }
+    ]);
   });
 
   it('extrai titleId da descrição se não houver ACF', () => {

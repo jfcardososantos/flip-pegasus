@@ -16,6 +16,39 @@ const imageFromHtml = (value = '') => {
   return match?.[1]?.replace(/&amp;/g, '&') || null;
 };
 
+function normaliseHttpUrl(value, baseUrl) {
+  if (!value) return null;
+  try {
+    const url = new URL(value.replace(/&amp;/g, '&'), baseUrl);
+    return /^https?:$/.test(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+export function extractLinksFromHtml(html = '', baseUrl) {
+  const doc = new JSDOM(html).window.document;
+  const links = [];
+  const seen = new Set();
+  const add = (rawUrl, name) => {
+    const url = normaliseHttpUrl(rawUrl, baseUrl);
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    links.push({ name: name?.replace(/\s+/g, ' ').trim() || 'Download', url });
+  };
+
+  // Não há whitelist de domínios: qualquer URL HTTP/HTTPS publicada no post
+  // é incluída, inclusive botões que usam atributos data-*.
+  doc.querySelectorAll('a[href], iframe[src], [data-url], [data-href], [data-link], [data-download]').forEach((element) => {
+    const rawUrl = element.getAttribute('href') || element.getAttribute('src') || element.getAttribute('data-url') || element.getAttribute('data-href') || element.getAttribute('data-link') || element.getAttribute('data-download');
+    const name = element.textContent || element.getAttribute('aria-label') || element.getAttribute('title');
+    add(rawUrl, name);
+  });
+
+  (doc.body.textContent.match(/https?:\/\/[^\s"'<>]+/gi) || []).forEach((url) => add(url, url));
+  return links;
+}
+
 export function normalisePost(post, mediaById = new Map()) {
   const title = stripHtml(post.title?.rendered || 'Sem título');
   // Prioridade: featured_media -> ACF custom field -> imagem no conteúdo
@@ -23,20 +56,24 @@ export function normalisePost(post, mediaById = new Map()) {
   const acfImage = post.acf?.poster || post.acf?.imagem_destaque || null;
   const image = featuredImage || acfImage || imageFromHtml(post.content?.rendered);
   
-  // Extrai links de download do ACF
-  let downloadLinks = [];
+  // Mantém os links de ACF e também todos os links presentes no HTML do post.
+  // A API do DLPSGame não expõe esses botões como ACF, por isso o HTML é
+  // essencial quando a fonte estiver no modo WordPress.
+  let acfLinks = [];
   if (post.acf?.download_links && Array.isArray(post.acf.download_links)) {
-    downloadLinks = post.acf.download_links
+    acfLinks = post.acf.download_links
       .filter(link => link?.url)
       .map(link => ({
         url: link.url,
         name: link.name || link.label || 'Download'
       }));
   } else if (post.acf?.link_download) {
-    downloadLinks = [{ url: post.acf.link_download, name: 'Download' }];
+    acfLinks = [{ url: post.acf.link_download, name: 'Download' }];
   } else if (post.meta?.download_link) {
-    downloadLinks = [{ url: post.meta.download_link, name: 'Download' }];
+    acfLinks = [{ url: post.meta.download_link, name: 'Download' }];
   }
+  const downloadLinks = [...acfLinks, ...extractLinksFromHtml(post.content?.rendered, post.link)]
+    .filter((link, index, links) => link?.url && links.findIndex((candidate) => candidate.url === link.url) === index);
 
   // Tenta extrair titleId (CUSA, PCAS, etc.) da descrição ou do ACF
   const titleIdMatch = `${title}\n${post.excerpt?.rendered || ''}\n${post.content?.rendered || ''}`.match(/\b(?:CUSA|PCAS|PLAS|PPSA)\d{5}\b/i);
@@ -83,3 +120,4 @@ export function makeCatalog(games, name = 'PS4 Catalog') {
   const sorted = [...games].sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
   return { name, version: 1, packages: sorted.map(packageFromGame) };
 }
+import { JSDOM } from 'jsdom';
