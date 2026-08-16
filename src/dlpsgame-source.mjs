@@ -3,13 +3,25 @@ import { makeCatalog } from './catalog.mjs';
 
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-async function fetchHtml(url) {
-  const response = await fetch(url, {
-    headers: { 'user-agent': USER_AGENT },
-    signal: AbortSignal.timeout(30_000)
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status} ao acessar ${url}`);
-  return response.text();
+async function fetchHtml(url, attempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: { 'user-agent': USER_AGENT },
+        signal: AbortSignal.timeout(30_000)
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status} ao acessar ${url}`);
+      return await response.text();
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        console.warn(`⚠️ Tentativa ${attempt}/${attempts} falhou em ${url}; tentando novamente.`);
+        await new Promise((resolve) => setTimeout(resolve, attempt * 1_000));
+      }
+    }
+  }
+  throw lastError;
 }
 
 function extractPostId(url) {
@@ -223,9 +235,9 @@ export async function fetchDlpsgameCatalog({ baseUrl, categorySlug = 'ps4', onPr
     const num = parseInt(link.textContent);
     if (!isNaN(num)) pageNumbers.push(num);
   });
-  if (pageNumbers.length > 0) {
-    totalPages = Math.max(...pageNumbers);
-  }
+  if (pageNumbers.length > 0) totalPages = Math.max(...pageNumbers);
+  const pageIndicator = doc.querySelector('.pages')?.textContent.match(/\bof\s+(\d+)\b/i);
+  if (pageIndicator) totalPages = Math.max(totalPages, Number(pageIndicator[1]));
   
   await onProgress?.({ totalPages, pagesFetched: 1, gamesFetched: posts.length });
   
@@ -250,8 +262,9 @@ export async function fetchDlpsgameCatalog({ baseUrl, categorySlug = 'ps4', onPr
       nextUrl = getNextPageUrl(pageHtml, nextUrl);
       page++;
     } catch (error) {
-      console.warn(`⚠️ Erro ao buscar página ${page}: ${error.message}`);
-      break;
+      // Não gera um catálogo aparentemente completo, porém truncado. A próxima
+      // atualização recomeça a coleta e mantém o catálogo anterior intacto.
+      throw new Error(`Não foi possível buscar a página ${page} da categoria: ${error.message}`);
     }
   }
 
@@ -261,33 +274,10 @@ export async function fetchDlpsgameCatalog({ baseUrl, categorySlug = 'ps4', onPr
   
   console.log(`✅ Encontrados ${allPosts.length} jogos no total.`);
   
-  // Buscar detalhes dos posts (se necessário)
-  const postsWithDetails = [];
-  for (let i = 0; i < allPosts.length; i++) {
-    const post = allPosts[i];
-    if (post.needsDetail && post.url) {
-      try {
-        console.log(`🔎 Buscando detalhes de: ${post.title}`);
-        const detail = await fetchPostPage(post.url);
-        postsWithDetails.push({
-          ...post,
-          cover: detail.cover || post.cover,
-          description: detail.description || post.description,
-          downloadLinks: detail.downloadLinks || [],
-          titleId: detail.titleId || post.titleId
-        });
-        // Delay para não sobrecarregar o servidor
-        if (i % 10 === 0) await new Promise(r => setTimeout(r, 500));
-      } catch (error) {
-        console.warn(`⚠️ Erro ao buscar detalhes de ${post.title}: ${error.message}`);
-        postsWithDetails.push(post);
-      }
-    } else {
-      postsWithDetails.push(post);
-    }
-  }
-  
-  return { games: postsWithDetails };
+  // A página de listagem já contém título, capa e a URL pública do jogo. Como
+  // o catálogo entrega essa URL diretamente, não precisamos abrir milhares de
+  // páginas individuais antes de publicar o resultado.
+  return { games: allPosts };
 }
 
 // Função para converter o formato do dlpsgame para o formato esperado pelo catálogo

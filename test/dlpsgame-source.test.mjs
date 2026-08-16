@@ -68,3 +68,11 @@ test('encontra a próxima página em paginação por caminho', () => {
   `, 'https://dlpsgame.com/category/ps4/');
   assert.equal(nextUrl, 'https://dlpsgame.com/category/ps4/page/2/');
 });
+
+test('usa a contagem total indicada pela categoria, não só os links visíveis', () => {
+  const nextUrl = getNextPageUrl(`
+    <span class="pages">1 of 321</span>
+    <a class="nextpostslink" rel="next" href="/category/ps4/page/2/">»</a>
+  `, 'https://dlpsgame.com/category/ps4/');
+  assert.equal(nextUrl, 'https://dlpsgame.com/category/ps4/page/2/');
+});
